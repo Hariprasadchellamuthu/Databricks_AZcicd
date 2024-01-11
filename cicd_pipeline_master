@@ -1,0 +1,25 @@
+trigger:  #It is for only if the changes happen in the main branch, then will be trigger the below file.
+  - main  
+
+variables:
+  - group: dbw-cicd-dev # It is use for specific each environment(dev, prod) to identify and save in the particular evnironment.
+
+  - name: vmImageName 
+    value: "windows-latest"
+  - name: notebooksPath
+    value: "notebooks" # It is for which path need to push to prod or other env
+
+pool:
+  vmImage: $(vmImageName) #This cicd pipeline code need to run in compute power, so we here need to use pool and specify the Image
+
+
+stages:
+  - template: templates/deploy-notebooks.yml
+    parameters:
+      stageId: "Deploy_to_Dev_Environment"
+      env: "dev"
+      environmentName: $(dev-environment-name) #It is for 
+      resourceGroupName: $(dev-resource-group-name)
+      serviceConnection: $(dev-service-connection-name) 
+      #It will help to integrate the Azure devops and Azure Resources#For env name, resource group name and service connection values are stored in variable option
+      notebooksPath: $(notebooksPath)
