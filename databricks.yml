@@ -1,75 +1,48 @@
-# Filename: databricks.yml
-bundle:
-  name: azure-devops-demo
+parameters:
+  - name: stageId
+    type: string 
+  - name: dependsOn
+    type: object
+    default: []
+  - name: env
+    type: string 
+  - name: environmentName
+    type: string
+  - name: resourceGroupName
+    type: string
+  - name: serviceConnection
+    type: string
+  - name: notebooksPath
+    type: string
 
-variables:
-  job_prefix: 
-    description: A unifying prefix for this bundle's job and task names.
-    default: azure-devops-demo
-  spark_version:
-    description: The cluster's Spark version ID.
-    default: 13.3.x-scala2.12
-  node_type_id:
-    description: The cluster's node type ID.
-    default: Standard_DS3_v2
+stages:
+  - stage: "${{ parameters.stageId }}"
+    displayName: "Deploying to [${{upper(parameters.env)}}] Environment"
+    dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - deployment: Deploy
+        displayName: "Deploying Databricks Notebooks"
+        environment: ${{parameters.environmentName}}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: ${{parameters.serviceConnection}}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      az upgrade --yes
+                      az config set extension.use_dynamic_install=yes_without_prompt
 
-artifacts:
-  dabdemo-wheel:
-    type: whl
-    path: ./Libraries/python/dabdemo
+                      $databricksWorkspace = (az resource list --resource-group ${{parameters.resourceGroupName}} --query "[?type=='Microsoft.Databricks/workspaces']" | ConvertFrom-Json)[0]
+                      $databricksWorkspaceInfo = (az databricks workspace show --ids $databricksWorkspace.id | ConvertFrom-Json)
 
-resources:
-  jobs:
-    run-unit-tests:
-      name: ${var.job_prefix}-run-unit-tests
-      tasks:
-        - task_key: ${var.job_prefix}-run-unit-tests-task
-          new_cluster:
-            spark_version: ${var.spark_version}
-            node_type_id: ${var.node_type_id}
-            num_workers: 1
-            spark_env_vars:
-              WORKSPACEBUNDLEPATH: ${workspace.root_path}
-          notebook_task:
-            notebook_path: ./run_unit_tests.py
-            source: WORKSPACE
-          libraries:
-            - pypi:
-                package: pytest
-    run-dabdemo-notebook:
-      name: ${var.job_prefix}-run-dabdemo-notebook
-      tasks:
-        - task_key: ${var.job_prefix}-run-dabdemo-notebook-task
-          new_cluster:
-            spark_version: ${var.spark_version}
-            node_type_id: ${var.node_type_id}
-            num_workers: 1
-            spark_env_vars:
-              WORKSPACEBUNDLEPATH: ${workspace.root_path}
-          notebook_task:
-            notebook_path: ./dabdemo_notebook.py
-            source: WORKSPACE
-          libraries:
-            - whl: "/Workspace${workspace.root_path}/files/Libraries/python/dabdemo/dist/dabdemo-0.0.1-py3-none-any.whl"
-    evaluate-notebook-runs:
-      name: ${var.job_prefix}-evaluate-notebook-runs
-      tasks:
-        - task_key: ${var.job_prefix}-evaluate-notebook-runs-task
-          new_cluster:
-            spark_version: ${var.spark_version}
-            node_type_id: ${var.node_type_id}
-            num_workers: 1
-            spark_env_vars:
-              WORKSPACEBUNDLEPATH: ${workspace.root_path}
-          spark_python_task:
-            python_file: ./evaluate_notebook_runs.py
-            source: WORKSPACE
-          libraries:
-            - pypi:
-                package: unittest-xml-reporting
+                      $bearToken = $(Build.Repository.LocalPath)/CICD/scripts/DatabricksToken.ps1 -databricksWorkspaceResourceId $databricksWorkspaceInfo.id -databricksWorkspaceUrl $databricksWorkspaceInfo.workspaceUrl
 
-targets:
-  dev:
-    mode: development
-    workspace:
-      host: databricks-host
+                      Install-Module -Name azure.databricks.cicd.tools -Force -Scope CurrentUser
+                      Import-Module -Name azure.databricks.cicd.tools
+                      Import-DatabricksFolder -BearerToken $bearToken -Region $databricksWorkspaceInfo.location -LocalPath $(Build.Repository.LocalPath)/${{parameters.notebooksPath}} -DatabricksPath '/live' -Clean
+
