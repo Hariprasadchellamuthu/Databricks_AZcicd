@@ -3,6 +3,7 @@ trigger:  #It is for only if the changes happen in the main branch, then will be
 
 variables:
   - group: dbw-cicd-dev # It is use for specific each environment(dev, prod) to identify and save in the particular evnironment.
+  - group: dbw-cicd-prod
 
   - name: vmImageName 
     value: "windows-latest"
@@ -21,5 +22,16 @@ stages:
       environmentName: $(dev-environment-name) #It is for 
       resourceGroupName: $(dev-resource-group-name)
       serviceConnection: $(dev-service-connection-name) 
+      #It will help to integrate the Azure devops and Azure Resources#For env name, resource group name and service connection values are stored in variable option
+      notebooksPath: $(notebooksPath)
+
+  - template: templates/deploy-notebooks.yml
+    parameters:
+      dependsOn: ["Deploy_to_Dev_Environment"]
+      stageId: "Deploy_to_Prod_Environment"
+      env: "prod"
+      environmentName: $(prod-environment-name) #It is for 
+      resourceGroupName: $(prod-resource-group-name)
+      serviceConnection: $(prod-service-connection-name) 
       #It will help to integrate the Azure devops and Azure Resources#For env name, resource group name and service connection values are stored in variable option
       notebooksPath: $(notebooksPath)
