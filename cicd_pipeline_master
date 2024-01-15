@@ -25,13 +25,3 @@ stages:
       #It will help to integrate the Azure devops and Azure Resources#For env name, resource group name and service connection values are stored in variable option
       notebooksPath: $(notebooksPath)
 
-  - template: templates/deploy-notebooks.yml
-    parameters:
-      dependsOn: ["Deploy_to_Dev_Environment"]
-      stageId: "Deploy_to_Prod_Environment"
-      env: "prod"
-      environmentName: $(prod-environment-name) #It is for 
-      resourceGroupName: $(prod-resource-group-name)
-      serviceConnection: $(prod-service-connection-name) 
-      #It will help to integrate the Azure devops and Azure Resources#For env name, resource group name and service connection values are stored in variable option
-      notebooksPath: $(notebooksPath)
